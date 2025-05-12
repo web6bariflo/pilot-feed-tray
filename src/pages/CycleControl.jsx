@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+import { useMqtt } from '../store/MqttContext';
 
 const CycleControl = () => {
   const [input, setInput] = useState('');
@@ -10,7 +11,12 @@ const CycleControl = () => {
 
   const apiurl = "http://192.168.31.27:8000";
 
+  const { publishMessage } = useMqtt();
+
   const handleSubmit = async (e) => {
+
+     publishMessage("456/data", input);
+
     e.preventDefault();
     try {
       await axios.post(`${apiurl}/pilot_feedtray_view/`, { value: input });
@@ -57,14 +63,15 @@ const CycleControl = () => {
 
   const handleStop = () => {
   toast("Process stopped");
+  publishMessage("123/data", "stop");
 };
 
   // Desired column order
   const columns = ['cycle_count', 'base_value', 'intial_value', 'cycle_value', 'remaining_value', 'timestamp'];
 
   return (
-    <div className="p-6 max-w-4xl mx-auto bg-gray-50 rounded-xl shadow-md">
-      <div className="mb-6 p-4 bg-indigo-100 rounded-lg">
+    <div className=" max-w-4xl mx-auto rounded-xl">
+      <div className=" flex flex-row justify-between mb-6 p-4 bg-indigo-100 rounded-lg">
         <h2 className="text-xl font-semibold text-indigo-800">Current Base Value</h2>
         <p className="text-3xl font-bold text-indigo-600">{baseValue}</p>
       </div>
@@ -94,12 +101,12 @@ const CycleControl = () => {
 
       {/* Table Section */}
       {cycleData.length > 0 && (
-        <div className="overflow-auto rounded-lg shadow-md">
-          <table className="min-w-full bg-white border">
+        <div className="overflow-auto rounded-lg shadow-md md:max-h-[440px]">
+          <table className="min-w-full bg-white shadow-md">
             <thead className="bg-gray-800 text-white">
               <tr>
                 {columns.map((col) => (
-                  <th key={col} className="py-3 px-4 text-left capitalize">
+                  <th key={col} className="py-3 px-3 text-center capitalize ">
                     {col.replace(/_/g, ' ')}
                   </th>
                 ))}
@@ -107,7 +114,7 @@ const CycleControl = () => {
             </thead>
             <tbody>
               {cycleData.map((item, index) => (
-                <tr key={index}>
+                <tr key={index} className='text-center'>
                   {columns.map((col) => {
                     if (col === 'timestamp') {
                       const date = new Date(item[col]);
