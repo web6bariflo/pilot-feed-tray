@@ -1,19 +1,20 @@
-// src/MqttContext.jsx
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useContext, useEffect, useState, useRef } from "react";
 import mqtt from "mqtt";
 
 const MqttContext = createContext();
 
 export const MqttProvider = ({ children }) => {
+
+  
   const [client, setClient] = useState(null);
-  const [connectionStatus, setConnectionStatus] = useState("disconnected"); // Track connection state
+  const [connectionStatus, setConnectionStatus] = useState("disconnected");
+  const statusRef = useRef("disconnected"); // Tracks the current connection status without triggering re-renders
+
   const [data, setData] = useState(() => {
     return JSON.parse(localStorage.getItem("mqttData")) || {
-      "123/data": [],
-      "456/data": [],
+      "feeder/fdtryA00/cycle_status": [],
     };
   });
-  
 
   useEffect(() => {
     const mqttClient = mqtt.connect({
@@ -23,13 +24,13 @@ export const MqttProvider = ({ children }) => {
       path: "/mqtt",
       username: "mqttuser",
       password: "Bfl@2025",
-      clientId: `mqtt_${Math.random().toString(16).slice(3)}`, // Unique client ID
-      reconnectPeriod: 5000 // Auto-reconnect every 5s if disconnected
+      clientId: `mqtt_${Math.random().toString(16).slice(3)}`,
+      reconnectPeriod: 5000
     });
 
-    // Connection status handler (only logs on change)
     const handleStatusChange = (newStatus) => {
-      if (connectionStatus !== newStatus) {
+      if (statusRef.current !== newStatus) {
+        statusRef.current = newStatus;
         setConnectionStatus(newStatus);
         console.log(`MQTT: ${newStatus}`);
       }
@@ -37,7 +38,7 @@ export const MqttProvider = ({ children }) => {
 
     mqttClient.on("connect", () => {
       handleStatusChange("connected");
-      mqttClient.subscribe(["123/data", "456/data"]);
+      mqttClient.subscribe(["feeder/fdtryA00/cycle_status"]);
     });
 
     mqttClient.on("reconnect", () => {
@@ -53,24 +54,20 @@ export const MqttProvider = ({ children }) => {
       handleStatusChange("error");
     });
 
-    mqttClient.on("message", (topic, message) => {
-      const newMessage = {
-        time: new Date().toISOString(),
-        value: message.toString(),
-      };
+   mqttClient.on("message", (topic, message) => {
+  const rawMessage = message.toString();
+  
+  console.log(`${topic} : ${rawMessage}`);
 
-      console.log(`${topic} : ${message}`);
-      
-    
-      setData((prevData) => {
-        const updatedData = {
-          ...prevData,
-          [topic]: [...(prevData[topic] || []), newMessage].slice(-7),
-        };
-        localStorage.setItem("mqttData", JSON.stringify(updatedData));
-        return updatedData;
-      });
-    });
+  setData((prevData) => {
+    const updatedData = {
+      ...prevData,
+      [topic]: [...(prevData[topic] || []), rawMessage].slice(-30),
+    };
+    localStorage.setItem("mqttData", JSON.stringify(updatedData));
+    return updatedData;
+  });
+});
 
     setClient(mqttClient);
 
@@ -89,17 +86,16 @@ export const MqttProvider = ({ children }) => {
     }
   };
 
-  // MqttContext.jsx (append inside MqttProvider)
-const clearTopicData = (topic) => {
-  setData((prevData) => {
-    const updatedData = {
-      ...prevData,
-      [topic]: [],
-    };
-    localStorage.setItem("mqttData", JSON.stringify(updatedData));
-    return updatedData;
-  });
-};
+  const clearTopicData = (topic) => {
+    setData((prevData) => {
+      const updatedData = {
+        ...prevData,
+        [topic]: [],
+      };
+      localStorage.setItem("mqttData", JSON.stringify(updatedData));
+      return updatedData;
+    });
+  };
 
   return (
     <MqttContext.Provider value={{ data, publishMessage, clearTopicData, connectionStatus }}>

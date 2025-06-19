@@ -3,19 +3,53 @@ import axios from "axios";
 import { FiDownload } from "react-icons/fi";
 
 const ImagePanel = () => {
+
   const [imageData, setImageData] = useState([]);
+  const [colorImageData, setColorImageData] = useState([]);
+
+  const API_BASE_URL = import.meta.env.VITE_API_URL;
+  const wsUrl = import.meta.env.VITE_WS_URL
+
+  const galleryImages = [];
+
+  // Add thermal images
+  imageData.forEach((item, index) => {
+    galleryImages.push({
+      type: "thermal",
+      image: item.thermal_image,
+      created_at: item.created_at,
+      index,
+    });
+  });
+
+  // Add color images
+  colorImageData.forEach((item, index) => {
+    galleryImages.push({
+      type: "color",
+      image: item.colour_image,
+      created_at: item.created_at,
+      index,
+    });
+  });
+
+  // Sort by timestamp (latest first)
+  galleryImages.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
   useEffect(() => {
-    const socket = new WebSocket("ws://192.168.31.149:8000/ws/thermal-images/");
-    setInterval(() => {
+    const socket = new WebSocket(`${wsUrl}/ws/thermal-images/`);
+    const pingInterval = setInterval(() => {
       if (socket.readyState === WebSocket.OPEN) {
         socket.send(JSON.stringify({ type: "ping" }));
       }
     }, 30000);
 
+
+
     socket.onopen = () => {
       console.log("WebSocket Connected");
     };
+
+
 
     socket.onmessage = (event) => {
       try {
@@ -28,6 +62,12 @@ const ImagePanel = () => {
           data.data.length > 0
         ) {
           setImageData(data.data);
+        } else if (
+          data.type === "colour_images" &&
+          Array.isArray(data.data) &&
+          data.data.length > 0
+        ) {
+          setColorImageData(data.data);
         }
       } catch (error) {
         console.error("❌ Error parsing WebSocket message:", error);
@@ -43,22 +83,15 @@ const ImagePanel = () => {
     };
 
     return () => {
+      clearInterval(pingInterval);
       socket.close();
     };
   }, []);
 
-  const handleCapture = () => {
-    console.log("Capture button clicked (MQTT removed)");
-  };
-
-  const handleAutoCapture = () => {
-    console.log("Auto Capture button clicked (MQTT removed)");
-  };
-
   const handleDownloadAll = async () => {
     try {
       const response = await axios.post(
-        "http://192.168.31.149:8000/download_all_thermal_images/",
+        `${API_BASE_URL}/download_all_thermal_images/`,
         null,
         { responseType: "blob" }
       );
@@ -75,70 +108,52 @@ const ImagePanel = () => {
   };
 
   return (
-    <div className="flex flex-col items-center w-full space-y-6 mt-4 px-4 max-w-screen-xl mx-auto">
-      {/* Buttons Section */}
-      <div className="flex flex-col justify-center items-center gap-6">
-        <div className="flex flex-row flex-wrap justify-center gap-6">
-          <button
-            onClick={handleCapture}
-            className="px-8 py-3 bg-gradient-to-r from-blue-600 to-blue-800 text-white font-semibold rounded-xl shadow-lg hover:scale-105 transform transition duration-300 ease-in-out"
+    <div className="flex flex-col items-center w-full mt-4 px-2 max-w-screen-xl mx-auto">
+     
+      {/* Unified Mobile-Style Gallery */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 w-full mt-6">
+        {galleryImages.map((img, i) => (
+          <div
+            key={i}
+            className="bg-white rounded-2xl shadow-xl p-3 flex flex-col gap-2 hover:shadow-2xl transition"
           >
-            Capture
-          </button>
-          <button
-            onClick={handleAutoCapture}
-            className="px-8 py-3 bg-gradient-to-r from-purple-600 to-purple-800 text-white font-semibold rounded-xl shadow-lg hover:scale-105 transform transition duration-300 ease-in-out"
-          >
-            Auto Capture
-          </button>
-        </div>
-        <div className="flex justify-center">
-          <button
-            onClick={handleDownloadAll}
-            className="px-8 py-3 bg-gradient-to-r from-green-600 to-green-700 text-white font-semibold rounded-xl shadow-lg hover:scale-105 transform transition duration-300 ease-in-out"
-          >
-            Download All
-          </button>
-        </div>
-      </div>
-
-      {/* Gallery View */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 mt-6 w-full">
-        {imageData
-          .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-          .map((img, index) => (
-            <div
-              key={index}
-              className="flex flex-col items-center w-full bg-white rounded-2xl shadow-xl transition hover:shadow-2xl p-2"
-            >
-              <div className="rounded-xl overflow-hidden border-4 border-gray-200">
+            {/* Image */}
+            <div className="rounded-xl overflow-hidden border-4 border-gray-200">
+              {img.image ? (
                 <img
-                  src={`data:image/png;base64,${img.thermal_image}`}
-                  alt={`Thermal Image ${index + 1}`}
-                  className="object-cover w-full h-auto transition-transform duration-300 hover:scale-105"
+                  src={`data:image/${img.type === "thermal" ? "png" : "jpeg"};base64,${img.image}`}
+                  alt={`${img.type} image ${i + 1}`}
+                  className="w-full object-cover h-auto transition-transform duration-300 hover:scale-105"
                 />
-              </div>
-              <div className="flex items-center justify-between mt-3 mb-1 w-full px-1 text-xs text-gray-700 font-medium">
-                <div className="bg-gray-200 px-2 py-1 rounded-md shadow-sm">
-                  {new Date(img.created_at).toLocaleString()}
+              ) : (
+                <div className="text-red-500 text-xs p-2 text-center">
+                  ⚠️ {img.type === "thermal" ? "Thermal" : "Color"} image not available
                 </div>
-                <button
-                  onClick={() => {
-                    const base64Data = img.thermal_image;
-                    const fileName = `thermal_image_${index + 1}.png`;
-                    const url = `data:image/png;base64,${base64Data}`;
-                    const link = document.createElement("a");
-                    link.href = url;
-                    link.download = fileName;
-                    link.click();
-                  }}
-                  className="text-white bg-green-600 hover:bg-green-700 px-3 py-1 rounded-md shadow-sm transition duration-200"
-                >
-                  <FiDownload className="w-4 h-4" />
-                </button>
-              </div>
+              )}
             </div>
-          ))}
+
+            {/* Timestamp and Download */}
+            <div className="flex justify-between items-center text-xs text-gray-700 mt-1 flex-wrap gap-2">
+              <div className="bg-gray-200 px-2 py-1 rounded-md shadow-sm text-[10px]">
+                {new Date(img.created_at).toLocaleString()}
+              </div>
+              <button
+                onClick={() => {
+                  const link = document.createElement("a");
+                  link.href = `data:image/${img.type === "thermal" ? "png" : "jpeg"};base64,${img.image}`;
+                  link.download = `${img.type}_image_${img.index + 1}.${img.type === "thermal" ? "png" : "jpg"}`;
+                  link.click();
+                }}
+                className={`text-white px-3 py-1 rounded-md shadow-sm ${img.type === "thermal"
+                  ? "bg-green-600 hover:bg-green-700"
+                  : "bg-blue-600 hover:bg-blue-700"
+                  }`}
+              >
+                <FiDownload className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );

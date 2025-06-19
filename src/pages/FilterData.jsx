@@ -25,18 +25,10 @@ const FilterData = () => {
     const handleGetMessages = async () => {
         setDataLoading(true);
         try {
-            const start = format(dateRange[0].startDate, "yyyy-MM-dd");
-            const end = format(dateRange[0].endDate, "yyyy-MM-dd");
-
-            const response = await axios.get(`${apiUrl}/filter_feedtray_data/`, {
-                params: {
-                    start_date: start,
-                    end_date: end,
-                },
-            });
+            const response = await axios.get(`${apiUrl}/getall_cycle/`);
 
             console.log("📥 GET success:", response.data);
-            setFuelEntries(response.data.data || []);
+            setFuelEntries(response.data || []);
         } catch (error) {
             console.error("❌ GET error:", error);
         } finally {
@@ -50,13 +42,15 @@ const FilterData = () => {
             const start = format(dateRange[0].startDate, "yyyy-MM-dd");
             const end = format(dateRange[0].endDate, "yyyy-MM-dd");
 
-            const response = await axios.get(`${apiUrl}/download_feedtray_data/`, {
-                params: {
-                    start_date: start,
-                    end_date: end,
+            const response = await axios.post(`${apiUrl}/download_csv/`, 
+                 {
+                    from_date: start,
+                    to_date: end,
                 },
-                responseType: "blob",
-            });
+               {
+                 responseType: "blob",
+               }
+            );
 
             const blob = new Blob([response.data], { type: "text/csv" });
             const url = window.URL.createObjectURL(blob);
@@ -195,11 +189,10 @@ const FilterData = () => {
                         <div className="space-y-2 max-h-66 overflow-y-auto border rounded p-3 bg-gray-50">
                             {fuelEntries.map((entry, index) => (
                                 <div key={index} className="p-2 border-b last:border-b-0">
-                                    <p><strong>Cycle:</strong> {entry.cycle_count}</p>
-                                    <p><strong>Base Value:</strong> {entry.base_value}</p>
-                                    <p><strong>Initial Value:</strong> {entry.intial_value}</p>
-                                    <p><strong>Remaining:</strong> {entry.remaining_value}</p>
-                                    <p><strong>Time:</strong> {new Date(entry.timestamp).toLocaleString()}</p>
+                                    <p><strong>id:</strong> {entry.id}</p>
+                                    <p><strong>cyclecount:</strong> {entry.cyclecount}</p>
+                                    <p><strong>start_time:</strong> {entry.start_time}</p>
+                                    <p><strong>end_time:</strong> {entry.end_time}</p>
                                 </div>
                             ))}
                         </div>
